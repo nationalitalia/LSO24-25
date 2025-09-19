@@ -27,19 +27,12 @@ int gameCount = 0;
 
 // ----------------------------------------------------
 // Utility
-Game* findGame() {
+Game* findGameById(ing gameId) {
 	int i;
-    for(i = 0; i < gameCount; i++) {
-        if (games[i].state == IN_ATTESA) 
-		{
-		printf("Il Matchmaking ha trovato una partita disponibile...");
-		return &games[i];
-        break;
-    	}
-        else
-        {
-        continue;
-    	}
+    for (i = 0; i < gameCount; i++) {
+        if (games[i].id[i][0] == gameId) {  // lâ€™ID della partita
+            return &games[i];
+        }
     }
     return NULL;
 }
@@ -162,7 +155,7 @@ void joinGame(SOCKET client) {
 // ----------------------------------------------------
 // Risposta owner YES/NO
 void handleOwnerResponse(SOCKET client, int gameId, int accept) {
-    Game *g = findGame(gameId);
+    Game *g = findGameById(gameId);
     if (!g || g->owner != client || g->pendingChallenger==INVALID_SOCKET) return;
 
     SOCKET challenger = g->pendingChallenger;
@@ -253,18 +246,41 @@ void playTurn(Game *g, SOCKET currentPlayer, char symbol, char *buffer) {
     	sendBoard(g);
         g->state = TERMINATA;
         notifyPlayers(g, symbol);
+
+        resetGame(g);
+        printf("Partita terminata: vittoria di %c. Slot resettato.\n", symbol);
+
         return;
     }
     if (checkDraw(g)) {
     	sendBoard(g);
         g->state = TERMINATA;
         notifyPlayers(g, 'D');
+
+        resetGame(g);
+        printf("Partita terminata: pareggio. Slot resettato.\n");
+        
         return;
     }
 
     // passa turno
     g->turn = 1 - g->turn;
     sendBoard(g);
+}
+
+
+// Resetta la partita per un nuovo gioco
+void resetGame(Game *g) {
+    g->owner = INVALID_SOCKET;
+    g->challenger = INVALID_SOCKET;
+    g->pendingChallenger = INVALID_SOCKET;
+    g->state = IN_ATTESA; // oppure NUOVA
+    g->turn = 0;
+    for (int r=0; r<3; r++){
+        for (int c=0; c<3; c++){
+            g->board[r][c] = ' ';
+        }
+    }
 }
 
 
@@ -316,17 +332,25 @@ int main() {
             if(FD_ISSET(s,&readfds)){
                 char buffer[1024];
                 int valread=recv(s,buffer,sizeof(buffer)-1,0);
-                if(valread<=0){closesocket(s);clients[i]=0;printf("Client disconnesso.\n");continue;}
+                if(valread<=0){
+                    closesocket(s);
+                    clients[i]=0;
+                    printf("Client disconnesso.\n");
+                    continue;
+                }
                 buffer[valread]='\0';
 
                 // Comandi
                 if(strncmp(buffer,"CREATE",6)==0) createGame(s);
                 else if(strncmp(buffer,"JOIN",4)==0) joinGame(s);
-                else if(strncmp(buffer,"SI",2)==0) handleOwnerResponse(s,atoi(buffer+4),1);
-                else if(strncmp(buffer,"NO",2)==0) handleOwnerResponse(s,atoi(buffer+3),0);
+                else if(strncmp(buffer,"SI",2) == 0 || strncmp(buffer,"NO",2) == 0) {
+                    // legge l'ID della partita dopo lo spazio
+                    int gameId = atoi(buffer + 3);  // es. "SI 3" o "NO 3"
+                    handleOwnerResponse(s, gameId, (buffer[0]=='S') ? 1 : 0);
+                }
                 else if(strncmp(buffer,"TUTORIAL",8)==0) tutorialGame(s);
                 else {
-                    // Controlla se il client è in partita e se è il suo turno
+                    // Controlla se il client ï¿½ in partita e se ï¿½ il suo turno
                     for(g=0;g<gameCount;g++){
                         Game *game=&games[g];
                         if(game->state==IN_CORSO && (s==game->owner || s==game->challenger)){

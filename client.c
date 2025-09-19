@@ -10,23 +10,37 @@
 #define PORT 9100
 #define SERVER_IP "127.0.0.1"
 
+typedef enum { MENU, IN_PARTITA, FINE_PARTITA } ClientState;
+
 SOCKET sock;
+ClientState clientState = MENU;
 
 // Thread che riceve messaggi dal server
 DWORD WINAPI recvThread(LPVOID lpParam) {
     char buffer[1024];
     int valread;
-    while(1) {
-        valread = recv(sock, buffer, sizeof(buffer)-1, 0);
-        if(valread <= 0) {
+
+    while (1) {
+        valread = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (valread <= 0) {
             printf("\nServer disconnesso.\n");
             exit(0);
         }
         buffer[valread] = '\0';
         printf("%s", buffer);
+
+        // Controllo messaggi speciali del server â†’ cambio stato
+        if (strstr(buffer, "Hai vinto!") || strstr(buffer, "Hai perso!") ||
+            strstr(buffer, "Pareggio")   || strstr(buffer, "Partita terminata")) {
+            clientState = FINE_PARTITA;
+        }
+        else if (strstr(buffer, "La partita") || strstr(buffer, "inizia")) {
+            clientState = IN_PARTITA;
+        }
     }
     return 0;
 }
+
 
 int main() {
     WSADATA wsa;
@@ -64,7 +78,7 @@ int main() {
 	printf("SI: Accetta la richiesta\n");  
 	printf("NO: Rifiuta la richiesta\n");  
 	printf("<numero>: Durante una partita, seleziona la tua mossa\n");
-	printf("TUTORIAL: Il sistema ti spiegherà come selezionare la mossa giusta\n\n");
+	printf("TUTORIAL: Il sistema ti spiegherï¿½ come selezionare la mossa giusta\n\n");
 
     // Thread per ricevere messaggi dal server
     CreateThread(NULL, 0, recvThread, NULL, 0, NULL);

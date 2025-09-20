@@ -28,6 +28,13 @@ DWORD WINAPI recvThread(LPVOID lpParam) {
         }
         buffer[valread] = '\0';
         printf("%s", buffer);
+        
+        // Messaggio di notifica partita
+        if (strstr(buffer, "È stata creata una nuova partita")) {
+            printf("\n\n=== AVVISO SERVER ===\n%s\n=====================\n\n", buffer);
+        } else {
+            printf("%s", buffer);
+        }
 
         // Controllo messaggi speciali del server → cambio stato
         if (strstr(buffer, "Hai vinto!") || strstr(buffer, "Hai perso!") ||

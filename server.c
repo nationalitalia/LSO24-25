@@ -126,7 +126,30 @@ void createGame(SOCKET client) {
     sprintf(msg, "La tua partita [ID = %d] e' stata creata. In attesa di un avversario...\n", g->id[current][0]);
     send(client, msg, strlen(msg), 0);
 		
-		
+	// Avviso agli altri client "liberi"
+    extern SOCKET clients[MAX_CLIENTS];  // dichiarazione globale in main
+    char notify[128];
+    sprintf(notify, " È stata creata una nuova partita con ID = %d!\n", g->id[current][0]);
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        SOCKET c = clients[i];
+        if (c != 0 && c != client) {
+            int occupato = 0;
+
+            // controllo se questo client è già dentro una partita attiva
+            for (int j = 0; j < gameCount; j++) {
+                if (games[j].state == IN_CORSO &&
+                    (games[j].owner == c || games[j].challenger == c)) {
+                    occupato = 1;
+                    break;
+                }
+            }
+
+            if (!occupato) {
+                send(c, notify, strlen(notify), 0);
+            }
+        }
+    }	
     
 }
 

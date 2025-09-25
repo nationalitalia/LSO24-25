@@ -1,0 +1,17 @@
+# docker-compose.yml
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: my_server
+    ports:
+      - "9100:9100"
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: my_client
+    depends_on:
+      - server

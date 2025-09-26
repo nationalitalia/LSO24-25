@@ -29,9 +29,8 @@ THREAD_RET_TYPE recvThread(THREAD_ARG_TYPE lpParam) {
 // ----------------------------------------------------
 // Trova la partita dato l'ID
 Game* findGameById(int gameId) {
-	int i;
-    for (i = 0; i < gameCount; i++) {
-        if (games[i].id[i][0] == gameId) {
+    for (int i = 0; i < gameCount; i++) {
+        if (games[i].id[0][0] == gameId) {
             return &games[i];
         }
     }
@@ -41,18 +40,22 @@ Game* findGameById(int gameId) {
 // ----------------------------------------------------
 // Trova partita disponibile per JOIN
 Game* findAvailableGame() {
-	int i;
-    for(i = 0; i < gameCount; i++) {
-        if (games[i].state == IN_ATTESA) 
-		{
-		printf("Il Matchmaking ha trovato una partita disponibile...");
-		return &games[i];
-        break;
-    	}
-        else
-        {
-        continue;
-    	}
+    for (int i = 0; i < gameCount; i++) {
+        if (games[i].state == IN_ATTESA && games[i].owner != INVALID_SOCKET) {
+            printf("Il Matchmaking ha trovato una partita disponibile (ID=%d)...\n", games[i].id[0][0]);
+            return &games[i];
+        }
+    }
+    return NULL;
+}
+
+// ----------------------------------------------------
+// Trova partita dato owner (in attesa di risposta)
+Game* findGameByOwner(sock_t owner) {
+    for (int i = 0; i < gameCount; i++) {
+        if (games[i].owner == owner && games[i].state == IN_ATTESA) {
+            return &games[i];
+        }
     }
     return NULL;
 }
@@ -61,10 +64,10 @@ Game* findAvailableGame() {
 // Tutorial
 void tutorialGame(sock_t client) {
     send(client, "Per eseguire delle mosse durante una partita scrivi il numero della mossa e premi invio!\n", 89, 0);
-	send(client, "Le mosse si basano su questo schema...\n\n", 39, 0);
-	send(client, " 1 | 2 | 3 \n", 12, 0);
-	send(client, " 4 | 5 | 6 \n", 12, 0);
-	send(client, " 7 | 8 | 9 \n", 12, 0);
+    send(client, "Le mosse si basano su questo schema...\n\n", 39, 0);
+    send(client, " 1 | 2 | 3 \n", 12, 0);
+    send(client, " 4 | 5 | 6 \n", 12, 0);
+    send(client, " 7 | 8 | 9 \n", 12, 0);
 }
 
 // ----------------------------------------------------
@@ -96,8 +99,8 @@ int checkVictory(Game *g, char symbol) {
 // ----------------------------------------------------
 // Controlla pareggio
 int checkDraw(Game *g) {
-    for (int r=0; r<3; r++)
-        for (int c=0; c<3; c++)
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++)
             if (g->board[r][c] == ' ') return 0;
     return 1;
 }
@@ -105,15 +108,15 @@ int checkDraw(Game *g) {
 // ----------------------------------------------------
 // Notifica risultato
 void notifyPlayers(Game *g, char result) {
-    if(result=='X') {
-        send(g->owner,"Hai vinto! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n",88,0);
-        send(g->challenger,"Hai perso! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n",88,0);
-    } else if(result=='O') {
-        send(g->owner,"Hai perso! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n",88,0);
-        send(g->challenger,"Hai vinto! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n",88,0);
+    if (result == 'X') {
+        send(g->owner, "Hai vinto! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n", 88, 0);
+        send(g->challenger, "Hai perso! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n", 88, 0);
+    } else if (result == 'O') {
+        send(g->owner, "Hai perso! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n", 88, 0);
+        send(g->challenger, "Hai vinto! Puoi creare una nuova partita con CREATE o unirti al matchmaking con JOIN...\n", 88, 0);
     } else {
-        send(g->owner,"Pareggio!\n",10,0);
-        send(g->challenger,"Pareggio!\n",10,0);
+        send(g->owner, "Pareggio!\n", 10, 0);
+        send(g->challenger, "Pareggio!\n", 10, 0);
     }
 }
 
@@ -173,18 +176,17 @@ void playTurn(Game *g, sock_t currentPlayer, char *buffer, char symbol) {
 
 // ----------------------------------------------------
 // Reset partita
-/*
 void resetGame(Game *g) {
+    g->state = TERMINATA;
     g->owner = INVALID_SOCKET;
     g->challenger = INVALID_SOCKET;
     g->pendingChallenger = INVALID_SOCKET;
-    g->state = IN_ATTESA;
     g->turn = 0;
     for(int r=0;r<3;r++)
         for(int c=0;c<3;c++)
             g->board[r][c]=' ';
 }
-*/
+
 // ----------------------------------------------------
 // Creazione partita
 void createGame(sock_t client) {
@@ -193,9 +195,9 @@ void createGame(sock_t client) {
         return;
     }
 
-    int current = gameCount+1;
-    Game *g = &games[current-1];
-    g->id[current][0]=current;
+    int index = gameCount;
+    Game *g = &games[index];
+    g->id[0][0] = index + 1;
     g->owner = client;
     g->challenger = INVALID_SOCKET;
     g->pendingChallenger = INVALID_SOCKET;
@@ -204,34 +206,32 @@ void createGame(sock_t client) {
     for(int r=0;r<3;r++)
         for(int c=0;c<3;c++)
             g->board[r][c]=' ';
-    gameCount = gameCount+1;
+    gameCount++;
 
     char msg[128];
-    sprintf(msg,"La tua partita [ID=%d] e' stata creata.\n",g->id[current][0]);
+    sprintf(msg,"La tua partita [ID=%d] e' stata creata.\n", g->id[0][0]);
     send(client,msg,strlen(msg),0);
 }
 
 // ----------------------------------------------------
 // JOIN partita
 void joinGame(sock_t client){
-    Game *g = findAvailableGame(client);
+    Game *g = findAvailableGame();
     if(!g){
         send(client,"Partita non disponibile.\n",25,0);
         return;
     }
 
     g->pendingChallenger = client;
-    send(g->owner,"Un giocatore vuole unirsi alla tua partita, Rispondi con SI o NO.\n",69,0);
-    printf("Partita trovata!");
-    char msg[128];
-    send(g->owner, msg, strlen(msg), 0);
+    send(g->owner,"Un giocatore vuole unirsi alla tua partita, rispondi con SI o NO.\n",67,0);
+    printf("Partita trovata! ID=%d\n", g->id[0][0]);
     send(client,"Richiesta inviata, attendi risposta...\n",39,0);
 }
 
 // ----------------------------------------------------
 // Risposta owner SI/NO
 void handleOwnerResponse(sock_t client,int accept){
-    Game *g = findAvailableGame(client);
+    Game *g = findGameByOwner(client);
     if(!g || g->owner!=client || g->pendingChallenger==INVALID_SOCKET) return;
 
     sock_t challenger = g->pendingChallenger;
@@ -244,7 +244,7 @@ void handleOwnerResponse(sock_t client,int accept){
         send(client,"Hai accettato la richiesta. La partita inizia!\n",46,0);
         sendBoard(g);
     }else{
-        send(challenger,"Richiesta RIFIUTATA.\n",22,0);
+        send(challenger,"Richiesta RIFIUTATA.\n",21,0);
         send(client,"Hai rifiutato la richiesta.\n",28,0);
     }
 }

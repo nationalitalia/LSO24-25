@@ -27,6 +27,8 @@ void resetGame(Game *g);
 void createGame(sock_t client);
 void joinGame(sock_t client);
 void handleOwnerResponse(sock_t client, int accept);
+int ownerHasActiveGame(sock_t client);
+void cleanupEmptyGames(sock_t client);
 
 #endif
 

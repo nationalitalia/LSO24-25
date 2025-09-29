@@ -65,7 +65,7 @@ int main() {
     printf("SI: Accetta la richiesta\n");
     printf("NO: Rifiuta la richiesta\n");
     printf("<numero>: Durante una partita, seleziona la tua mossa\n");
-    printf("TUTORIAL: Il sistema ti spiegherà come selezionare la mossa giusta\n\n");
+    printf("TUTORIAL: Il sistema ti spieghera' come selezionare la mossa giusta\n\n");
 
     // Usa la macro per creare il thread di ricezione
     CREATE_RECEIVE_THREAD(&sock);

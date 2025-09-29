@@ -1,8 +1,11 @@
-# Assicurati di essere nella cartella del progetto
-# Controlla che Docker Desktop sia in esecuzione
-
 # Numero di client da avviare
 $clientCount = Read-Host "Quanti client vuoi avviare?" 
+
+# Controllo che il numero sia maggiore di zero
+if (-not ($clientCount -as [int]) -or $clientCount -le 0) {
+    Write-Host "Errore: devi inserire un numero intero maggiore di zero." -ForegroundColor Red
+    exit
+}
 
 Write-Host "=== Avvio del gioco con Docker Compose ===" -ForegroundColor Cyan
 
@@ -26,3 +29,4 @@ for ($i = 1; $i -le $clientCount; $i++) {
     Write-Host "Avvio del client $i..." -ForegroundColor Green
     Start-Process powershell -ArgumentList "-NoExit", "-Command", "docker-compose run --rm client"
 }
+

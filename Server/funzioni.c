@@ -61,6 +61,17 @@ Game* findGameByOwner(sock_t owner) {
 }
 
 // ----------------------------------------------------
+// Gestione owner con singola partita
+int ownerHasActiveGame(sock_t client) {
+    for (int i = 0; i < gameCount; i++) {
+        if (games[i].state == IN_CORSO && games[i].owner == client) {
+            return 1; // già in una partita attiva come owner
+        }
+    }
+    return 0;
+}
+
+// ----------------------------------------------------
 // Tutorial
 void tutorialGame(sock_t client) {
     send(client, "Per eseguire delle mosse durante una partita scrivi il numero della mossa e premi invio!\n", 89, 0);
@@ -188,6 +199,23 @@ void resetGame(Game *g) {
 }
 
 // ----------------------------------------------------
+// Rimuove le partite IN_ATTESA senza challenger per un determinato owner
+void cleanupEmptyGames(sock_t client) {
+    for (int i = 0; i < gameCount; i++) {
+        Game *g = &games[i];
+        if (g->owner == client && g->state == IN_ATTESA && g->pendingChallenger == INVALID_SOCKET) {
+            // Shift all'elementi successivi a sinistra
+            for (int j = i; j < gameCount - 1; j++) {
+                games[j] = games[j + 1];
+            }
+            gameCount--; // decrementa il numero di partite
+            i--; // ripeti il ciclo sul nuovo elemento in posizione i
+        }
+    }
+}
+
+
+// ----------------------------------------------------
 // Creazione partita
 void createGame(sock_t client) {
     if(gameCount>=MAX_GAMES){
@@ -216,12 +244,17 @@ void createGame(sock_t client) {
 // ----------------------------------------------------
 // JOIN partita
 void joinGame(sock_t client){
+	cleanupEmptyGames(client);
+	
     Game *g = findAvailableGame();
     if(!g){
         send(client,"Partita non disponibile.\n",25,0);
         return;
     }
-
+	if (g->owner == client) {
+        send(client, "Non puoi unirti alla tua stessa partita!\n", 42, 0);
+        return;
+    }
     g->pendingChallenger = client;
     send(g->owner,"Un giocatore vuole unirsi alla tua partita, rispondi con SI o NO.\n",67,0);
     printf("Partita trovata! ID=%d\n", g->id[0][0]);
@@ -232,16 +265,24 @@ void joinGame(sock_t client){
 // Risposta owner SI/NO
 void handleOwnerResponse(sock_t client,int accept){
     Game *g = findGameByOwner(client);
-    if(!g || g->owner!=client || g->pendingChallenger==INVALID_SOCKET) return;
+    if(!g || g->owner!=client || g->pendingChallenger==INVALID_SOCKET){
+    	printf("Non è stato possibile gestire la risposta\n");
+    	return;
+	}
 
     sock_t challenger = g->pendingChallenger;
     g->pendingChallenger = INVALID_SOCKET;
 
     if(accept){
+    	if (ownerHasActiveGame(client)) {
+            send(client, "Hai gia' una partita in corso, non puoi iniziarne un'altra!\n", 61, 0);
+            send(challenger, "Il giocatore non può accettare perche' e' gia' impegnato in un'altra partita.\n", 79, 0);
+            return;
+        }
         g->challenger = challenger;
         g->state = IN_CORSO;
-        send(challenger,"Richiesta ACCETTATA! La partita inizia.\n",39,0);
-        send(client,"Hai accettato la richiesta. La partita inizia!\n",46,0);
+        send(client,"Richiesta ACCETTATA! La partita inizia, ora e' il tuo turno!\n",62,0);
+        send(challenger,"Hai accettato la richiesta. La partita inizia, attendi il turno dell'avversario!\n",82,0);
         sendBoard(g);
     }else{
         send(challenger,"Richiesta RIFIUTATA.\n",21,0);

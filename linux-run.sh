@@ -11,7 +11,7 @@ fi
 
 # Avvia il server in background
 echo "Avvio del server..."
-sudo docker compose up -d server
+docker compose up -d server
 
 # Funzione per aprire un client interattivo
 start_client() {
@@ -19,7 +19,7 @@ start_client() {
   echo "Avvio client $CLIENT_NUM..."
   # Avvia il container client in modalità interattiva e collegato alla rete del server
   # Cambio di comando per aprire il programma a causa di un'aggiornamento di gnome Nobara
-  kgx -e bash -c "docker compose run --rm --service-ports client; exec bash"
+  kgx -e bash -c "docker compose run --rm --service-ports client; exec bash" &
 }
 
 # Avvia i client

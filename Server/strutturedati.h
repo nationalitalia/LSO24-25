@@ -19,9 +19,14 @@ char board[3][3];
 int turn;
 } Game;
 
+typedef struct {
+    sock_t socket;
+    char name[32];
+} ClientInfo;
+
 // Variabili globali
 extern Game games[MAX_GAMES];
 extern int gameCount;
-extern sock_t clients[MAX_CLIENTS]; // Sostituito con il tipo compatibile
+extern ClientInfo connected_clients[MAX_CLIENTS];
 
 #endif

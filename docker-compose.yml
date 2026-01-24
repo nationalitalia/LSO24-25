@@ -1,17 +1,14 @@
-# docker-compose.yml
 services:
   server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
+    build: ./server
     container_name: my_server
     ports:
       - "9100:9100"
 
   client:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
+    build: ./client
     container_name: my_client
+    environment:
+      - SERVER_HOST=server # Questo deve corrispondere al nome del servizio sopra
     depends_on:
       - server

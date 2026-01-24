@@ -9,7 +9,9 @@ THREAD_RET_TYPE recvThread(THREAD_ARG_TYPE lpParam);
 
 // Utility
 Game* findGameById(int gameId);
+void joinGameById(sock_t client, int id_richiesto);
 Game* findAvailableGame();
+void availableGames(sock_t client);
 
 // Gioco
 void tutorialGame(sock_t client);
@@ -29,6 +31,7 @@ void joinGame(sock_t client);
 void handleOwnerResponse(sock_t client, int accept);
 int ownerHasActiveGame(sock_t client);
 void cleanupEmptyGames(sock_t client);
+void handleDisconnection(sock_t sd);
 
 #endif
 

@@ -1,32 +1,43 @@
-# Numero di client da avviare
-$clientCount = Read-Host "Quanti client vuoi avviare?" 
+Write-Host "=== Avvio del gioco Tris Online ===" -ForegroundColor Cyan
 
-# Controllo che il numero sia maggiore di zero
-if (-not ($clientCount -as [int]) -or $clientCount -le 0) {
-    Write-Host "Errore: devi inserire un numero intero maggiore di zero." -ForegroundColor Red
-    exit
-}
-
-Write-Host "=== Avvio del gioco con Docker Compose ===" -ForegroundColor Cyan
-
-# Ferma eventuali container esistenti
+# 1. Pulizia totale
 Write-Host "Rimuovo eventuali container vecchi..." -ForegroundColor Yellow
 docker-compose down
 
-# Costruzione dei container
-Write-Host "Costruzione dei container..." -ForegroundColor Yellow
-docker-compose build
+# 2. Build e Avvio del Server in background (-d)
+Write-Host "Compilazione e avvio del Server C..." -ForegroundColor Yellow
+# Usiamo -d (detached) per non bloccare lo script qui
+docker-compose up --build -d server
 
-# Avvio del server in background
-Write-Host "Avvio del server..." -ForegroundColor Green
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "docker-compose up server"
+# 3. Attesa per il boot del server
+Start-Sleep -Seconds 2
 
-# Attesa breve per assicurarsi che il server parta
-Start-Sleep -Seconds 3
+# 4. Chiedi quanti client avviare
+$clientCount = Read-Host "Quanti client vuoi avviare?" 
 
-# Avvio dei client
-for ($i = 1; $i -le $clientCount; $i++) {
-    Write-Host "Avvio del client $i..." -ForegroundColor Green
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "docker-compose run --rm client"
+if (-not ($clientCount -as [int]) -or $clientCount -le 0) {
+    Write-Host "Errore: inserisci un numero valido." -ForegroundColor Red
+    exit
 }
 
+# 5. Compilazione del Client Java (UNA VOLA SOLA)
+Write-Host "Compilazione Client Java..." -ForegroundColor Yellow
+cd Client
+javac TrisClient.java
+if ($LASTEXITCODE -ne 0) { 
+    Write-Host "Errore durante la compilazione Java!" -ForegroundColor Red
+    cd ..
+    exit 
+}
+cd ..
+
+# 6. Avvio dei Client locali
+for ($i = 1; $i -le $clientCount; $i++) {
+    Write-Host "Avvio del client locale $i..." -ForegroundColor Green
+    # Lanciamo il processo java direttamente
+    $clientCommand = "cd Client; java TrisClient"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", $clientCommand
+}
+
+Write-Host "=== Tutti i client sono stati avviati! ===" -ForegroundColor Cyan
+Write-Host "Per vedere i log del server usa: docker logs -f my_server" -ForegroundColor Gray

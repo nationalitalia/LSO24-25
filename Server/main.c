@@ -8,6 +8,7 @@
 // Variabili globali richieste da funzioni.c
 
 sock_t clients[MAX_CLIENTS] = {0};
+ClientInfo connected_clients[MAX_CLIENTS];
 Game games[MAX_GAMES] = {0};
 int gameCount = 0;
 
@@ -68,14 +69,20 @@ int main() {
         // Nuovo client
         if (FD_ISSET(serverSocket, &readfds)) {
             clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &addrlen);
-            if (clientSocket < 0) { printf("Accept fallito\n"); continue; }
-
-            printf("Nuovo client connesso.\n");
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (clients[i] == 0) { clients[i] = clientSocket; break; }
+            if (clientSocket < 0) { printf("Accept fallito\n"); }
+            else {
+                printf("Nuovo client connesso al socket %d\n", (int)clientSocket);
+                for (int i = 0; i < MAX_CLIENTS; i++) {
+                    if (clients[i] == 0) { 
+                        clients[i] = clientSocket; 
+                        // Salvo anche nelle info per il nome
+                        connected_clients[i].socket = clientSocket;
+                        strcpy(connected_clients[i].name, "Anonimo");
+                        break; 
+                    }
+                }
+                send(clientSocket, "Benvenuto!\n", 11, 0);
             }
-
-            send(clientSocket, "Benvenuto!\n", 11, 0);
         }
 
         // Client esistenti
@@ -86,17 +93,30 @@ int main() {
             if (FD_ISSET(s, &readfds)) {
                 char buffer[1024];
                 int valread = recv(s, buffer, sizeof(buffer) - 1, 0);
+                
                 if (valread <= 0) {
+                    handleDisconnection(s);
                     closesocket(s);
-                    clients[i] = 0;
-                    printf("Client disconnesso.\n");
+                    clients[i] = 0; 
+                    connected_clients[i].socket = 0;
+                    strcpy(connected_clients[i].name, "Anonimo");
+                    printf("Client rimosso.\n");
                     continue;
                 }
+                
                 buffer[valread] = '\0';
 
                 // Comandi
-                if (strncmp(buffer, "CREATE", 6) == 0) createGame(s);
+                if (strncmp(buffer, "NOME ", 5) == 0) {
+    				strncpy(connected_clients[i].name, buffer + 5, 31);
+    				connected_clients[i].name[strcspn(connected_clients[i].name, "\r\n")] = 0;
+    				printf("Socket %d associato al nome: %s\n", (int)s, connected_clients[i].name);
+    				fflush(stdout);
+				}
+                else if (strncmp(buffer, "CREATE", 6) == 0) createGame(s);
+                else if (strncmp(buffer, "JOIN ", 5) == 0) { int id_richiesto = atoi(buffer + 5); joinGameById(s, id_richiesto); }
                 else if (strncmp(buffer, "JOIN", 4) == 0) joinGame(s);
+                else if (strncmp(buffer, "LIST", 4) == 0) availableGames(s);
                 else if(strncmp(buffer,"SI",2)==0) handleOwnerResponse(s,1);
                 else if(strncmp(buffer,"NO",2)==0) handleOwnerResponse(s,0);
                 else if (strncmp(buffer, "TUTORIAL", 8) == 0) tutorialGame(s);

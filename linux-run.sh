@@ -1,31 +1,27 @@
 #!/bin/bash
 
-# Chiede all'utente quanti client aprire
+# Pulizia totale (Server e Client precedenti)
+echo "Pulizia ambiente Docker..."
+docker compose down
+
+# hiede il numero di client
 read -p "Quanti client vuoi aprire? " NUM_CLIENTS
 
-# Verifica che l'input sia un numero maggiore di 0
 if ! [[ "$NUM_CLIENTS" =~ ^[0-9]+$ ]] || [ "$NUM_CLIENTS" -le 0 ]; then
-    echo "Per favore inserisci un numero valido maggiore di 0."
+    echo "Errore: inserisci un numero valido."
     exit 1
 fi
 
-# Avvia il server in background
-echo "Avvio del server..."
+# Avvia il server
+echo "Avvio del server in background..."
 docker compose up -d server
 
-# Funzione per aprire un client interattivo
-start_client() {
-  CLIENT_NUM=$1
-  echo "Avvio client $CLIENT_NUM..."
-  # Avvia il container client in modalità interattiva e collegato alla rete del server
-  # Cambio di comando per aprire il programma a causa di un'aggiornamento di gnome Nobara
-  kgx -e bash -c "docker compose run --rm --service-ports client; exec bash" &
-}
-
-# Avvia i client
+# Avvia i client in modalità Detached (-d)
+# Questo sostituisce kgx Docker avvia il processo ma non apre un terminale
 for ((i=1;i<=NUM_CLIENTS;i++)); do
-  start_client $i
+    echo "Avvio container client $i..."
+    docker compose run -d --rm client
 done
 
-echo "Server e client avviati!"
-echo "Per fermare tutto: docker-compose down"
+echo "Tutti i client sono stati avviati!"
+echo "I log del server sono visibili con: docker logs -f server"

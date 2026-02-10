@@ -7,16 +7,17 @@
 #define MAX_CLIENTS 10
 #define MAX_GAMES 10
 
-typedef enum { NUOVA, IN_ATTESA, IN_CORSO, TERMINATA } GameState;
+typedef enum { NUOVA, IN_ATTESA, IN_CORSO, TERMINATA, RIVINCITA } GameState;
 
 typedef struct {
 int id[256][2];
 sock_t owner; // Sostituito con il tipo compatibile
 sock_t challenger; // Sostituito con il tipo compatibile
-sock_t pendingChallenger; // Sostituito con il tipo compatibile
 GameState state;
 char board[3][3];
 int turn;
+int ownerRivincita;
+int challengerRivincita;
 } Game;
 
 typedef struct {

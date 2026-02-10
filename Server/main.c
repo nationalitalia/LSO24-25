@@ -108,17 +108,130 @@ int main() {
 
                 // Comandi
                 if (strncmp(buffer, "NOME ", 5) == 0) {
-    				strncpy(connected_clients[i].name, buffer + 5, 31);
-    				connected_clients[i].name[strcspn(connected_clients[i].name, "\r\n")] = 0;
-    				printf("Socket %d associato al nome: %s\n", (int)s, connected_clients[i].name);
-    				fflush(stdout);
+    				char* namePart = buffer + 5;
+                    namePart[strcspn(namePart, "\r\n ")] = 0; // Toglie \n e spazi finali
+                    strncpy(connected_clients[i].name, namePart, 31);
+                    connected_clients[i].name[31] = '\0';
+                    printf("Socket %d registrato come: [%s]\n", (int)s, connected_clients[i].name);
+                    fflush(stdout);
 				}
                 else if (strncmp(buffer, "CREATE", 6) == 0) createGame(s);
                 else if (strncmp(buffer, "JOIN ", 5) == 0) { int id_richiesto = atoi(buffer + 5); joinGameById(s, id_richiesto); }
-                else if (strncmp(buffer, "JOIN", 4) == 0) joinGame(s);
                 else if (strncmp(buffer, "LIST", 4) == 0) availableGames(s);
-                else if(strncmp(buffer,"SI",2)==0) handleOwnerResponse(s,1);
-                else if(strncmp(buffer,"NO",2)==0) handleOwnerResponse(s,0);
+                else if (strncmp(buffer, "DELETE ", 7) == 0) { int id_richiesto = atoi(buffer + 7); deleteGame(s, id_richiesto); }
+                else if (strncmp(buffer, "DELETE", 6) == 0) ownAvailableGames(s);
+               else if (strncmp(buffer, "RIVINCITA_SI", 12) == 0) {
+                    for (int i = 0; i < gameCount; i++) {
+                        if ((games[i].owner == s || games[i].challenger == s) && games[i].state == TERMINATA) {
+                            
+                            // Segniamo chi ha dato il consenso
+                            if (s == games[i].owner) {
+                                games[i].ownerRivincita = 1;
+                            } else {
+                                games[i].challengerRivincita = 1;
+                            }
+
+                            // Controlliamo se entrambi hanno accettato
+                            if (games[i].ownerRivincita && games[i].challengerRivincita) {
+                            	
+                            	if(ownerHasActiveGame(games[i].owner)){
+                            		send(games[i].challenger, "L'avversario non e' piu' disponibile!\n", 39, 0);
+                            		removeGame(i);
+                            		break;
+								}
+								else if(ownerHasActiveGame(games[i].challenger)){
+                            		send(games[i].owner, "L'avversario non e' piu' disponibile!\n", 39, 0);
+                            		removeGame(i);
+                            		break;
+								}
+								else{
+                                resetGame(&games[i]); // Pulisce scacchiera e resetta i flag Ready a 0
+                                
+                                sendBoard(&games[i]);
+                                send(games[i].owner, "Entrambi hanno accettato! Inizia l'owner.\n", 43, 0);
+                                send(games[i].challenger, "Entrambi hanno accettato! Inizia l'owner.\n", 43, 0);
+                            	}
+                            } else {
+                                // Avvisa solo chi ha premuto SI
+                                send(s, "Hai accettato la rivincita. In attesa dell'avversario...\n", 58, 0);
+                                
+                                // Opzionale: avvisa l'altro che il compagno sta aspettando
+                                sock_t altro = (s == games[i].owner) ? games[i].challenger : games[i].owner;
+                                send(altro, "L'avversario vuole la rivincita! Accetti?\n", 42, 0);
+                            }
+                            break;
+                        }
+                    }
+                }
+                else if (strncmp(buffer, "RIVINCITA_NO", 12) == 0) {
+                    // Cercha la partita
+                    for (int i = 0; i < gameCount; i++) {
+                        if ((games[i].owner == s || games[i].challenger == s) && games[i].state == TERMINATA) {
+                            
+                            // Avvisa l'altro giocatore che la sfida è finita
+                            send(games[i].owner, "Rivincita rifiutata. Partita chiusa.\n", 38, 0);
+                            send(games[i].challenger, "Rivincita rifiutata. Partita chiusa.\n", 38, 0);
+                            
+                            // Rimove la partita 
+                            removeGame(i); 
+                            break;
+                        }
+                    }
+                }
+
+                else if (strncmp(buffer, "ACCETTA ", 8) == 0) {
+                    char nomeTarget[32];
+                    // Puliamo il buffer principale da newline prima di estrarre
+                    buffer[strcspn(buffer, "\r\n")] = 0;
+
+                    // Estraiamo il nome. %s si ferma al primo spazio.
+                    if (sscanf(buffer + 8, "%s", nomeTarget) == 1) {
+                        // Rimuoviamo forzatamente ogni residuo invisibile dal nome estratto
+                        nomeTarget[strcspn(nomeTarget, "\r\n ")] = 0;
+
+                        sock_t challengerSd = INVALID_SOCKET;
+                        // Ricerca sicura nell'array
+                        for (int j = 0; j < MAX_CLIENTS; j++) {
+                            if (clients[j] != 0 && strcmp(connected_clients[j].name, nomeTarget) == 0) {
+                                challengerSd = clients[j];
+                                break;
+                            }
+                        }
+
+                        if (challengerSd != INVALID_SOCKET) {
+                            printf("Server: Owner %d accetta sfida da %s (socket %d)\n", (int)s, nomeTarget, (int)challengerSd);
+                            handleOwnerResponse(s, 1, challengerSd);
+                        } else {
+                            // Debug utile per capire se il nome cercato è diverso da quello salvato
+                            printf("Errore: Sfidante [%s] non trovato. Verificare registrazione nome.\n", nomeTarget);
+                            send(s, "Errore: Sfidante non trovato o disconnesso.\n", 44, 0);
+                        }
+                    }
+                }
+
+                // --- GESTIONE RIFIUTA CON PULIZIA STRINGA ---
+                else if (strncmp(buffer, "RIFIUTA ", 8) == 0) {
+                    char nomeTarget[32];
+                    buffer[strcspn(buffer, "\r\n")] = 0;
+
+                    if (sscanf(buffer + 8, "%s", nomeTarget) == 1) {
+                        nomeTarget[strcspn(nomeTarget, "\r\n ")] = 0;
+
+                        sock_t challengerSd = INVALID_SOCKET;
+                        for (int j = 0; j < MAX_CLIENTS; j++) {
+                            if (clients[j] != 0 && strcmp(connected_clients[j].name, nomeTarget) == 0) {
+                                challengerSd = clients[j];
+                                break;
+                            }
+                        }
+
+                        if (challengerSd != INVALID_SOCKET) {
+                            printf("Server: Owner %d rifiuta sfida da %s\n", (int)s, nomeTarget);
+                            handleOwnerResponse(s, 0, challengerSd);
+                        }
+                    }
+                }
+                else if(strncmp(buffer,"LEAVE",5)==0) handleDisconnection(s);
                 else if (strncmp(buffer, "TUTORIAL", 8) == 0) tutorialGame(s);
                 else {
                     // Turni di gioco

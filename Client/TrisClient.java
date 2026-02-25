@@ -14,6 +14,7 @@ public class TrisClient {
     private JButton[] buttons = new JButton[9];
     private String username;
     private String lastChallenger = "";
+    private boolean iAmCreator = false;
     private JLabel vsLabel = new JLabel("In attesa...", SwingConstants.CENTER);
 
     public TrisClient(String serverAddress, int port, String username) {
@@ -56,7 +57,10 @@ public class TrisClient {
         JButton btnList = createStyledButton("LIST", new Color(0, 123, 255));
         JButton btnDelete = createStyledButton("DELETE", new Color(220, 53, 69));
 
-        btnCreate.addActionListener(e -> out.println("CREATE"));
+        btnCreate.addActionListener(e -> {
+            iAmCreator = true;
+            out.println("CREATE");
+        });
         btnList.addActionListener(e -> out.println("LIST"));
         btnDelete.addActionListener(e -> out.println("DELETE"));
 
@@ -125,7 +129,7 @@ public class TrisClient {
             int confirm = JOptionPane.showConfirmDialog(frame, "Vuoi davvero abbandonare?", "Conferma", JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
                 out.println("LEAVE");
-                resetBoard();
+                resetFullUI();
             }
         });
 
@@ -192,11 +196,29 @@ public class TrisClient {
                 else {
                     SwingUtilities.invokeLater(() -> {
                         // 1. Comando speciale per i nomi
-                        if (msg.startsWith("OPPONENT_IS")) {
+                        if (msg.contains("Rivincita rifiutata") || msg.contains("L'avversario non e' piu' disponibile!") || msg.contains("L'avversario ha abbandonato. Hai vinto!")) {
+                            messageArea.append(msg + "\n");
+                            resetFullUI();
+                        }
+                        else if (msg.startsWith("OPPONENT_IS")) {
                             String oppName = msg.split(" ")[1].trim();
-                            vsLabel.setText("<html><center><b style='color:blue;'>" + username + "</b><br>" +
-                                            "<span style='font-size:9px; color:gray;'>VS</span><br>" +
-                                            "<b style='color:red;'>" + oppName + "</b></center></html>");
+
+                            String playerX, playerO;
+                            if (iAmCreator) {
+                                playerX = username;
+                                playerO = oppName;
+                            } else {
+                                playerX = oppName;
+                                playerO = username;
+                            }
+
+                            vsLabel.setText("<html><center>" +
+                                    "<span style='color:#333333; font-weight:bold;'>" + playerX + "</span> " +
+                                    "<b style='color:red;'> (X)</b><br>" +
+                                    "<span style='font-size:10px; color:gray;'>contro</span><br>" +
+                                    "<span style='color:#333333; font-weight:bold;'>" + playerO + "</span> " +
+                                    "<b style='color:blue;'> (O)</b>" +
+                                    "</center></html>");
                         } 
                         
                         // 2. FINE PARTITA (Questo ferma tutto finché non premi OK)
@@ -218,10 +240,11 @@ public class TrisClient {
                                     "Vuoi la rivincita?", "Rivincita", JOptionPane.YES_NO_OPTION);
                                 
                                 if (scelta == JOptionPane.YES_OPTION) {
+                                    resetBoard();
                                     out.println("RIVINCITA_SI");
                                 } else {
                                     out.println("RIVINCITA_NO");
-                                    resetBoard(); 
+                                    resetFullUI();
                                 }
                             });
                             delayRivincita.setRepeats(false);
@@ -240,7 +263,7 @@ public class TrisClient {
                             }
                             if (msg.contains("disconnesso")) {
                                 JOptionPane.showMessageDialog(frame, msg, "Notifica", JOptionPane.WARNING_MESSAGE);
-                                resetBoard();
+                                resetFullUI();
                             }
                         }
                     });
@@ -262,6 +285,7 @@ public class TrisClient {
             joinBtn.addActionListener(e -> {
                 String selected = jList.getSelectedValue();
                 if (selected != null) {
+                    iAmCreator = false;
                     out.println("JOIN " + selected.split(" ")[0]);
                     listDialog.dispose();
                 }
@@ -316,9 +340,13 @@ public class TrisClient {
         });
     }
 
+    private void resetFullUI() {
+        resetBoard();
+        vsLabel.setText("<html><center>In attesa<br>di sfidanti</center></html>");
+    }
+
     private void resetBoard() {
         for (JButton b : buttons) b.setText("");
-        vsLabel.setText("<html><center>In attesa<br>di sfidanti</center></html>");
     }
 
     public static void main(String[] args) {
